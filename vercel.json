@@ -1,0 +1,11 @@
+{
+  "installCommand": "npm install && npm install --prefix server",
+  "rewrites": [
+    { "source": "/((?!api/).*)", "destination": "/index.html" }
+  ],
+  "functions": {
+    "api/graphql.ts": {
+      "includeFiles": "server/node_modules/tree-sitter-wasms/out/tree-sitter-{c,cpp}.wasm"
+    }
+  }
+}

@@ -1,41 +1,22 @@
-import { ApolloServer } from "@apollo/server";
-import { startStandaloneServer } from "@apollo/server/standalone";
+import { app } from "./app.js";
 import { config } from "./config.js";
 import { logger } from "./logging/logger.js";
-import { typeDefs } from "./graphql/schema/index.js";
-import { resolvers } from "./graphql/resolvers/index.js";
-import { buildContext } from "./middleware/context.js";
-import type { GraphQLContext } from "./middleware/context.js";
 
-const server = new ApolloServer<GraphQLContext>({
-  typeDefs,
-  resolvers,
-  // Introspection is a development convenience; leaving it on in production
-  // publishes the entire schema.
-  introspection: config.NODE_ENV !== "production",
-  formatError: (formatted, raw) => {
-    logger.error(
-      { err: raw, code: formatted.extensions?.code },
-      "graphql error",
-    );
-
-    // Never let an internal failure leak a stack trace or SQL to the client.
-    if (formatted.extensions?.code === "INTERNAL_SERVER_ERROR") {
-      return {
-        message: "Something went wrong.",
-        extensions: { code: "INTERNAL_SERVER_ERROR" },
-      };
-    }
-    return formatted;
-  },
+/**
+ * Local development entry point.
+ *
+ * In production this file is never run: Vercel calls api/graphql.ts, which
+ * exports the same Express app from app.ts without listening on a port
+ * itself. Keeping the two separate means a change to routing or middleware
+ * only has to happen once, in app.ts.
+ */
+app.listen(config.PORT, () => {
+  logger.info(
+    {
+      url: `http://localhost:${config.PORT}/`,
+      env: config.NODE_ENV,
+      cors: config.CORS_ORIGIN,
+    },
+    "CodeFlow GraphQL API ready",
+  );
 });
-
-const { url } = await startStandaloneServer(server, {
-  listen: { port: config.PORT },
-  context: async ({ req }) => buildContext(req.headers.authorization),
-});
-
-logger.info(
-  { url, env: config.NODE_ENV, cors: config.CORS_ORIGIN },
-  "CodeFlow GraphQL API ready",
-);

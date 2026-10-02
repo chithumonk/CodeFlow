@@ -20,6 +20,21 @@ export type CDialect = "c" | "cpp";
 
 const require = createRequire(import.meta.url);
 
+/**
+ * One literal require per dialect, rather than a template string built from
+ * `dialect`.
+ *
+ * A path computed at runtime is invisible to static analysis — and that is
+ * exactly how these two .wasm files are found and bundled, both by Vite in
+ * the browser build and by Vercel's function bundler tracing this file's
+ * dependencies. A templated `require.resolve` would silently ship a function
+ * missing both grammars, so C and C++ tracing would 500 only in production.
+ */
+const WASM_PATH: Record<CDialect, string> = {
+  c: require.resolve("tree-sitter-wasms/out/tree-sitter-c.wasm"),
+  cpp: require.resolve("tree-sitter-wasms/out/tree-sitter-cpp.wasm"),
+};
+
 let ready: Promise<void> | null = null;
 const languages = new Map<CDialect, Parser.Language>();
 
@@ -29,9 +44,7 @@ async function parserFor(dialect: CDialect): Promise<Parser> {
 
   let language = languages.get(dialect);
   if (!language) {
-    language = await Parser.Language.load(
-      require.resolve(`tree-sitter-wasms/out/tree-sitter-${dialect}.wasm`),
-    );
+    language = await Parser.Language.load(WASM_PATH[dialect]);
     languages.set(dialect, language);
   }
 

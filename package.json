@@ -11,7 +11,7 @@
     "test:watch": "vitest",
     "dev:api": "npm --prefix server run dev",
     "test:e2e": "playwright test",
-    "typecheck": "tsc --noEmit && tsc --noEmit -p server"
+    "typecheck": "tsc --noEmit && tsc --noEmit -p server && tsc --noEmit -p api"
   },
   "dependencies": {
     "@codemirror/commands": "^6.11.1",
