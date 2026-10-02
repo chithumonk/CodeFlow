@@ -1,0 +1,193 @@
+/* ==========================================================================
+   CodeFlow — design tokens
+   Custom properties pierce shadow DOM, so every Lit component inherits these.
+
+   Theming: an inline script in index.html stamps the resolved theme onto
+   <html data-theme="dark|light"> before first paint, so there is no flash and
+   the CSS only ever needs to look at that one attribute. :root carries the
+   dark palette; the [data-theme="light"] block below overrides it.
+
+   Components must not hardcode colours. Anything that varies by theme —
+   including "just a black overlay" or "just a white hairline" — belongs here.
+   ========================================================================== */
+
+:root {
+  color-scheme: dark;
+
+  /* --- Canvas & surfaces ------------------------------------------------ */
+  --cf-bg: #0a0b0d;
+  --cf-bg-raised: #101115;
+  --cf-surface: #14161b;
+  --cf-surface-2: #191c22;
+  --cf-surface-3: #21252d;
+
+  /* --- Hairlines -------------------------------------------------------- */
+  --cf-line: rgba(255, 255, 255, 0.07);
+  --cf-line-strong: rgba(255, 255, 255, 0.12);
+  --cf-line-bright: rgba(255, 255, 255, 0.2);
+
+  /* --- Type ------------------------------------------------------------- */
+  --cf-text: #f2f3f5;
+  --cf-text-dim: #a4a9b4;
+  --cf-text-muted: #6f7681;
+  --cf-text-faint: #4a505a;
+
+  /* --- Accent: amber is the execution pointer -------------------------- */
+  --cf-accent: #ff8a3d;
+  --cf-accent-hot: #ffb057;
+  --cf-accent-deep: #d9631a;
+  --cf-accent-soft: rgba(255, 138, 61, 0.14);
+  --cf-accent-soft-2: rgba(255, 138, 61, 0.24);
+  --cf-accent-line: rgba(255, 138, 61, 0.32);
+  --cf-accent-glow: rgba(255, 138, 61, 0.28);
+
+  /* The primary button keeps the same bright amber in both themes: it reads
+     as a lit control against a dark page and against a white one. */
+  --cf-btn-top: #ffb057;
+  --cf-btn-mid: #ff8a3d;
+  --cf-btn-bot: #d9631a;
+  --cf-btn-gloss: rgba(255, 255, 255, 0.28);
+  --cf-on-accent: #24120a;
+
+  /* --- Syntax / data palette ------------------------------------------- */
+  --cf-blue: #7aa2f7;
+  --cf-teal: #63d2c3;
+  --cf-violet: #b48ce8;
+  --cf-rose: #f07178;
+  --cf-green: #92d17f;
+  --cf-yellow: #e8cd8a;
+
+  /* --- Washes ----------------------------------------------------------- */
+  /* Recessed panels (editor chrome, footers, code backgrounds). Dark themes
+     recess with black; light themes recess with a touch of ink. */
+  --cf-inset-soft: rgba(0, 0, 0, 0.13);
+  --cf-inset: rgba(0, 0, 0, 0.22);
+  --cf-inset-strong: rgba(0, 0, 0, 0.3);
+
+  /* Top-edge highlight that makes a panel look lit from above. */
+  --cf-gloss: rgba(255, 255, 255, 0.24);
+
+  /* Neutral hover tint for bare links and icon buttons. */
+  --cf-hover: rgba(255, 255, 255, 0.045);
+
+  /* Empty progress tracks, timeline segments and placeholder bars. These sit
+     on recessed chrome, so they need their own value — a plain surface tone
+     disappears against an inset panel in light mode. */
+  --cf-track: #272c35;
+  --cf-track-hover: #3a414d;
+  --cf-scroll-thumb-hover: #343a45;
+
+  /* Translucent bars that blur what is behind them. */
+  --cf-nav-bg: rgba(10, 11, 13, 0.72);
+  --cf-drawer-bg: rgba(10, 11, 13, 0.94);
+
+  /* Ambient light pooled behind the whole page. */
+  --cf-ambient-warm: rgba(255, 138, 61, 0.1);
+  --cf-ambient-cool: rgba(122, 162, 247, 0.07);
+
+  --cf-selection-bg: #ff8a3d;
+  --cf-selection-fg: #120a04;
+
+  /* --- Elevation -------------------------------------------------------- */
+  --cf-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --cf-shadow-md: 0 8px 24px -8px rgba(0, 0, 0, 0.6);
+  --cf-shadow-lg:
+    0 32px 64px -24px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.04);
+
+  /* --- Fonts ------------------------------------------------------------ */
+  --cf-font-sans:
+    "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
+    Arial, sans-serif;
+  --cf-font-mono:
+    "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+    "Liberation Mono", monospace;
+
+  /* --- Rhythm ----------------------------------------------------------- */
+  --cf-container: 1180px;
+  --cf-gutter: clamp(1.25rem, 4vw, 2.5rem);
+  --cf-section-y: clamp(5rem, 11vw, 9.5rem);
+
+  /* --- Radii ------------------------------------------------------------ */
+  --cf-r-sm: 6px;
+  --cf-r-md: 10px;
+  --cf-r-lg: 14px;
+  --cf-r-xl: 20px;
+  --cf-r-full: 999px;
+
+  /* --- Motion ----------------------------------------------------------- */
+  --cf-ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --cf-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --cf-dur: 240ms;
+
+  /* --- Layers ----------------------------------------------------------- */
+  --cf-z-nav: 100;
+}
+
+/* ==========================================================================
+   Light theme
+   Only colour tokens are redefined — rhythm, radii and motion are shared.
+   ========================================================================== */
+
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  /* Page sits a shade off white so white cards read as raised. */
+  --cf-bg: #f6f6f4;
+  --cf-bg-raised: #ffffff;
+  --cf-surface: #ffffff;
+  --cf-surface-2: #ffffff;
+  --cf-surface-3: #ebebe8;
+
+  --cf-line: rgba(17, 24, 39, 0.1);
+  --cf-line-strong: rgba(17, 24, 39, 0.16);
+  --cf-line-bright: rgba(17, 24, 39, 0.26);
+
+  --cf-text: #15171c;
+  --cf-text-dim: #4d545f;
+  --cf-text-muted: #6d757f;
+  --cf-text-faint: #9aa1aa;
+
+  /* Amber has to darken to stay legible on white. */
+  --cf-accent: #d9631a;
+  --cf-accent-hot: #a8450a;
+  --cf-accent-deep: #8a3906;
+  --cf-accent-soft: rgba(217, 99, 26, 0.1);
+  --cf-accent-soft-2: rgba(217, 99, 26, 0.18);
+  --cf-accent-line: rgba(217, 99, 26, 0.3);
+  --cf-accent-glow: rgba(217, 99, 26, 0.22);
+
+  /* Syntax colours retuned for a white background. */
+  --cf-blue: #0550ae;
+  --cf-teal: #0b6e7a;
+  --cf-violet: #8250df;
+  --cf-rose: #cf222e;
+  --cf-green: #0a7c42;
+  --cf-yellow: #8f5b00;
+
+  --cf-inset-soft: rgba(17, 24, 39, 0.016);
+  --cf-inset: rgba(17, 24, 39, 0.032);
+  --cf-inset-strong: rgba(17, 24, 39, 0.052);
+
+  /* A white gloss is invisible on white, so the top edge darkens instead. */
+  --cf-gloss: rgba(17, 24, 39, 0.1);
+
+  --cf-hover: rgba(17, 24, 39, 0.045);
+
+  --cf-track: #dedcd6;
+  --cf-track-hover: #cac8c1;
+  --cf-scroll-thumb-hover: #c9c9c4;
+
+  --cf-nav-bg: rgba(246, 246, 244, 0.76);
+  --cf-drawer-bg: rgba(250, 250, 248, 0.96);
+
+  --cf-ambient-warm: rgba(255, 138, 61, 0.11);
+  --cf-ambient-cool: rgba(86, 130, 214, 0.07);
+
+  --cf-selection-bg: #ffd2ad;
+  --cf-selection-fg: #3a1a05;
+
+  --cf-shadow-sm: 0 1px 2px rgba(17, 24, 39, 0.06);
+  --cf-shadow-md: 0 8px 24px -8px rgba(17, 24, 39, 0.14);
+  --cf-shadow-lg:
+    0 28px 56px -24px rgba(17, 24, 39, 0.22), 0 0 0 1px rgba(17, 24, 39, 0.05);
+}

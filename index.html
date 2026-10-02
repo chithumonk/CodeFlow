@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
+    <title>CodeFlow — See your code come to life</title>
+    <meta
+      name="description"
+      content="CodeFlow runs your program one step at a time and shows you exactly what happens — every line, every variable, every call."
+    />
+    <meta name="theme-color" content="#0a0b0d" />
+    <meta name="color-scheme" content="dark light" />
+
+    <!-- Resolve the theme before the first paint so the page never flashes the
+         wrong palette. Mirrors src/lib/theme.ts; keep the storage key in sync. -->
+    <script>
+      (function () {
+        var theme = "dark";
+        try {
+          var stored = localStorage.getItem("codeflow-theme");
+          if (stored === "light" || stored === "dark") {
+            theme = stored;
+          } else if (matchMedia("(prefers-color-scheme: light)").matches) {
+            theme = "light";
+          }
+        } catch (e) {
+          /* storage blocked — dark is the fallback */
+        }
+        document.documentElement.setAttribute("data-theme", theme);
+      })();
+    </script>
+
+    <!-- Snapshot the URL before any module runs. Supabase's auth client
+         consumes and strips the hash (tokens on success, error=… on a bad or
+         expired link) while initialising, so a component that reads
+         location.hash later finds nothing. -->
+    <script>
+      window.__cfLaunchUrl = {
+        hash: window.location.hash,
+        search: window.location.search,
+      };
+    </script>
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="CodeFlow — See your code come to life" />
+    <meta
+      property="og:description"
+      content="Understand exactly what happens when your program runs — one step at a time."
+    />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;450;500;550;600;650&family=JetBrains+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+
+    <script type="module" src="/src/main.ts"></script>
+  </head>
+  <body>
+    <cf-app></cf-app>
+  </body>
+</html>

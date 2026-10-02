@@ -1,0 +1,114 @@
+@import "./tokens.css";
+
+/* ==========================================================================
+   Reset + document shell
+   ========================================================================== */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  scroll-behavior: smooth;
+  /* Offset anchor targets so the sticky navbar never covers a heading. */
+  scroll-padding-top: 6rem;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--cf-bg);
+  color: var(--cf-text);
+  font-family: var(--cf-font-sans);
+  font-size: 16px;
+  line-height: 1.6;
+  font-feature-settings: "cv11", "ss01";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+  /* Softens the swap when the theme changes. Component-level colours are
+     mostly untransitioned, so the page settles in one short beat. */
+  transition:
+    background-color 200ms var(--cf-ease),
+    color 200ms var(--cf-ease);
+}
+
+/* Ambient light: two soft pools of colour behind everything, fixed so they
+   read as light in the room rather than decoration that scrolls away. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      60rem 40rem at 50% -8rem,
+      var(--cf-ambient-warm),
+      transparent 70%
+    ),
+    radial-gradient(
+      48rem 34rem at 88% 12%,
+      var(--cf-ambient-cool),
+      transparent 72%
+    );
+}
+
+/* The route outlet is the only child of body. It must be a block so the
+   sticky navbar and page sections inside it lay out normally, and it sits
+   above the ambient background layer painted by body::before. */
+cf-app {
+  display: block;
+  position: relative;
+  z-index: 1;
+}
+
+::selection {
+  background: var(--cf-selection-bg);
+  color: var(--cf-selection-fg);
+}
+
+:focus-visible {
+  outline: 2px solid var(--cf-accent);
+  outline-offset: 3px;
+  border-radius: 3px;
+}
+
+/* Thin, dark scrollbar so the chrome does not fight the page. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--cf-surface-3) transparent;
+}
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--cf-surface-3);
+  border-radius: var(--cf-r-full);
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--cf-scroll-thumb-hover);
+  background-clip: content-box;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
