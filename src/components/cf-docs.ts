@@ -44,6 +44,8 @@ const SECTIONS: Section[] = [
   { id: "running", title: "Running your code" },
   { id: "engines", title: "What runs your code" },
   { id: "reading", title: "Reading a run" },
+  { id: "summary", title: "What the run solved" },
+  { id: "fullview", title: "Full view" },
   { id: "languages", title: "Languages" },
   { id: "supported", title: "What's traced" },
   { id: "limits", title: "Limits and safeguards" },
@@ -239,6 +241,19 @@ export class CfDocs extends LitElement {
         border-radius: var(--cf-r-sm);
         background: var(--cf-inset-strong);
         color: var(--cf-text);
+      }
+
+      /* A key to press, rather than code to read: same family, with an edge. */
+      kbd {
+        font-family: var(--cf-font-mono);
+        font-size: 0.75rem;
+        padding: 0.0625rem 0.375rem;
+        border: 1px solid var(--cf-line-bright);
+        border-bottom-width: 2px;
+        border-radius: var(--cf-r-sm);
+        background: var(--cf-surface-2);
+        color: var(--cf-text);
+        white-space: nowrap;
       }
 
       pre {
@@ -553,7 +568,8 @@ export class CfDocs extends LitElement {
 
           ${this.what()} ${this.watch()} ${this.start()} ${this.projects()}
           ${this.running()} ${this.engines()} ${this.languages()}
-          ${this.reading()} ${this.supported()} ${this.limits()}
+          ${this.reading()} ${this.summary()} ${this.fullview()}
+          ${this.supported()} ${this.limits()}
           ${this.trouble()} ${this.roadmap()}
         </article>
       </div>
@@ -659,6 +675,11 @@ export class CfDocs extends LitElement {
           same language. Add one with <strong>+</strong> in the Files panel;
           rename or delete with the icons that appear on hover. A project always
           keeps at least one file.
+        </p>
+        <p>
+          On a narrow screen the Files panel is hidden, so
+          <strong>+</strong> appears at the end of the file tabs instead.
+          Renaming and deleting still need a wider window.
         </p>
         <p>
           The <strong>extension decides the language</strong> — name a file
@@ -770,6 +791,14 @@ export class CfDocs extends LitElement {
           Every panel shows the state at the step you are on. Move the timeline
           and they all move together.
         </p>
+        <p>
+          The output panel along the bottom can be resized: drag the edge above
+          its tabs, or focus it and use the arrow keys
+          (<kbd>Shift</kbd> for larger steps, <kbd>Home</kbd> and
+          <kbd>End</kbd> for the limits). Double-click to reset it. The editor
+          keeps a minimum height of its own, so the panel cannot cover the code
+          it is describing.
+        </p>
 
         ${this.shot(
           "workspace",
@@ -786,14 +815,42 @@ export class CfDocs extends LitElement {
           trace's line numbers only mean something for the file it came from.
         </p>
 
-        <h3>Variables</h3>
+        <h3>Data</h3>
         <p>
           Everything in scope at this step, with the value that just changed
-          flashing. Values are abbreviated: long arrays show a count, objects
-          show their first few keys.
+          flashing. Plain values show as a name and a value; long ones are
+          abbreviated.
+        </p>
+        <p>
+          <strong>Lists and strings are drawn as cells</strong>, each labelled
+          with its index — a string by character, a list by item. The cells
+          already passed are dimmed, the current one is raised, and a marker
+          slides along underneath as the walk advances. That is what turns
+          <code>[10, 20, 30, 40]</code> from a value into something you can
+          watch being read. Objects show as key and value rows.
         </p>
 
+        <div class="note">
+          <p>
+            <strong>The marker is worked out, not recorded.</strong> A trace
+            says a loop is on its third iteration; it does not say which
+            variable that counts through. So the position is inferred from the
+            loop counter and corroborated against the values in scope, and
+            <strong>no marker is shown when nothing supports one</strong> —
+            before the loop starts, for instance. Exactly one collection
+            carries it: the one being read, never the one being built.
+          </p>
+        </div>
+
         <h3>Call stack</h3>
+        <p>
+          A class method appears as
+          <code>ClassName.method</code> and a constructor as
+          <code>new ClassName</code>. A function assigned to a variable, or
+          defined as an object property, takes that name. Only a genuinely
+          nameless function — an inline callback — shows as
+          <code>(anonymous)</code>.
+        </p>
         <p>
           Which function you are inside and how you got there, innermost first.
           Recursion shows as the same name repeated, which is the clearest way
@@ -1146,6 +1203,131 @@ export class CfDocs extends LitElement {
     `;
   }
 
+  private summary() {
+    return html`
+      <section id="summary">
+        <h2>What the run solved</h2>
+        <p>
+          The <strong>Summary</strong> tab, beside Transcript and Console,
+          answers two questions in a few lines: what problem the code solved,
+          and how it went about it. For a program that adds up a list it reads:
+        </p>
+        <pre><code>Adds up the numbers in a list.
+total([10, 20, 30, 40]) → 100
+Walks nums (4 items) and folds it into sum.
+Took 9 steps.</code></pre>
+
+        <h3>How the problem is worked out</h3>
+        <p>
+          Not from the names in your code. A function called
+          <code>total</code> proves nothing — it might do anything. Instead each
+          candidate problem is a claim that gets
+          <strong>checked against the run&rsquo;s own input and output</strong>:
+          summing <code>[10, 20, 30, 40]</code> really does give
+          <code>100</code>, so that claim holds. Sorting, reversing,
+          de-duplicating, counting characters, finding the first non-repeating
+          character, two-sum, factorials, primes, anagrams and palindromes are
+          all recognised the same way.
+        </p>
+
+        <div class="note">
+          <p>
+            <strong>When nothing fits, nothing is claimed.</strong> A problem
+            statement you cannot check is worse than none, so an unrecognised
+            program gets only the line describing how it ran.
+          </p>
+        </div>
+
+        <div class="note warn">
+          <p>
+            <strong>One example often cannot tell two problems apart.</strong>
+            <code>[1, 2, 3] → 3</code> is the largest item, the item count and
+            the last item all at once. Rather than pick, the summary says so and
+            invites a sharper example: <code>[5, 9, 1] → 9</code> can only be
+            the largest.
+          </p>
+        </div>
+
+        <h3>Programs with no single answer</h3>
+        <p>
+          A class driven through its methods computes no one value, so there is
+          no problem to prove. The summary describes the behaviour instead — how
+          often each method ran, what it was called with, and what it printed:
+        </p>
+        <pre><code>Builds a BrowserHistory and calls visit, currentPage and back on it.
+Ran visit 3 times, currentPage 3 times and back twice.
+Called with "google.com", "github.com" and "stackoverflow.com".
+Printed 8 lines, ending with "Current page: google.com".
+Took 29 steps.</code></pre>
+        <p>
+          Those lines appear only when they are carrying the weight. When a
+          problem <em>is</em> named, the line beneath it already shows the call
+          and the answer, so repeating them would be the same fact twice.
+        </p>
+      </section>
+    `;
+  }
+
+  private fullview() {
+    return html`
+      <section id="fullview">
+        <h2>Full view</h2>
+        <p>
+          The workspace shows a run in a narrow side panel, which is enough to
+          follow while you edit but small to watch. <strong>Full view</strong>,
+          from the button in the output panel header, gives the same run the
+          whole screen — and plays it.
+        </p>
+
+        ${this.shot(
+          "fullview",
+          "Full view: the summary, the list drawn as cells with a reading marker, the call stack, the flow diagram and the transport controls",
+          "Full view, paused mid-loop. The summary names the problem, the list is drawn as cells with a marker under the item being read, and the transport along the bottom runs it.",
+          1440,
+          860,
+        )}
+
+        <p>
+          It needs a trace, so the button stays disabled until you have run a
+          file in a traced language. Nothing is re-run or re-fetched: it is the
+          same trace the workspace already has, so opening and closing it never
+          interrupts playback.
+        </p>
+
+        <h3>Playing it</h3>
+        <ul>
+          <li><strong>Play / Pause</strong>, and <strong>Replay</strong> once it reaches the end</li>
+          <li>Step <strong>forward</strong> and <strong>back</strong> one step at a time</li>
+          <li>A <strong>timeline</strong> to scrub to any step</li>
+          <li>
+            Speed at <strong>0.5×</strong>, <strong>1×</strong>,
+            <strong>2×</strong> or <strong>4×</strong> — 1× holds each step for
+            about three quarters of a second
+          </li>
+        </ul>
+        <p>
+          From the keyboard: <kbd>Space</kbd> plays and pauses,
+          <kbd>←</kbd> and <kbd>→</kbd> step, and <kbd>Esc</kbd> closes.
+        </p>
+
+        <h3>What moves</h3>
+        <p>
+          The motion is there to be read, not for decoration. The line marker
+          <strong>travels</strong> between lines rather than blinking from one
+          to the next, and the code scrolls to keep it centred. A changed value
+          flashes, so you can see which one this step wrote. Stack frames slide
+          in as they are pushed. The node in the flow diagram pulses, and the
+          path behind it lights up.
+        </p>
+        <p>
+          If your system asks for reduced motion, the travel and the pulsing
+          stop but every state change stays — the movement carries information,
+          so removing it entirely would remove the explanation with it.
+        </p>
+      </section>
+    `;
+  }
+
   private supported() {
     return html`
       <section id="supported">
@@ -1312,6 +1494,23 @@ export class CfDocs extends LitElement {
           still enough to follow the path taken.
         </p>
 
+        <h3>The Summary does not name my problem</h3>
+        <p>
+          It only names a problem it can check against the run’s input and
+          output, and the list it checks against is finite. An unrecognised
+          program still gets the line describing how it ran — see
+          <a href="#summary">What the run solved</a>.
+        </p>
+
+        <h3>A variable is still listed after its function returned</h3>
+        <p>
+          Values are held in one flat view, and a function’s locals are not
+          cleared when it returns, so a parameter can linger in the Data panel
+          while you are back at the top level. It is stale rather than wrong,
+          and per-frame scopes are on the list of things
+          <a href="#roadmap">not built yet</a>.
+        </p>
+
         <h3>My edit did not save</h3>
         <p>
           The header shows <em>Save failed</em> with a Retry button when a save
@@ -1339,7 +1538,12 @@ export class CfDocs extends LitElement {
           </li>
           <li>
             <strong>Per-frame variable scopes</strong> — variables are one flat
-            view today
+            view today, and a function’s locals are not cleared when it
+            returns, so they can linger in the Data panel afterwards
+          </li>
+          <li>
+            <strong>Renaming and deleting files on a narrow screen</strong> —
+            adding one works, the rest needs a wider window
           </li>
           <li><strong>Folders</strong> — file names are flat</li>
           <li>

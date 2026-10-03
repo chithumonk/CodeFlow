@@ -1,51 +1,47 @@
 /**
- * Theme preference: what the reader chose.
- * "system" defers to the OS, and is the default.
+ * Theme: two modes, dark and light.
+ *
+ * There is deliberately no "follow the system" mode. A third, invisible state
+ * made the toggle unpredictable — the same button press produced a different
+ * result depending on an OS setting the reader could not see from here — and
+ * it meant the page could change theme on its own while being read. The
+ * preference is now exactly what the reader last chose.
  */
-export type ThemePref = "system" | "light" | "dark";
+export type Theme = "light" | "dark";
 
-/** Theme actually in effect once "system" has been resolved. */
-export type ResolvedTheme = "light" | "dark";
+/** Used until the reader chooses. Also the fallback in index.html — keep in sync. */
+export const DEFAULT_THEME: Theme = "dark";
 
 /** Also read by the inline pre-paint script in index.html — keep in sync. */
 export const STORAGE_KEY = "codeflow-theme";
 
-/** Fired on window whenever the preference or the resolved theme changes. */
+/** Fired on window whenever the theme changes. */
 export const THEME_EVENT = "cf-theme-change";
 
 export interface ThemeChangeDetail {
-  pref: ThemePref;
-  resolved: ResolvedTheme;
+  theme: Theme;
 }
-
-const lightQuery = () => matchMedia("(prefers-color-scheme: light)");
 
 /**
  * Storage can throw outright in private modes and locked-down embeds, so every
- * access is guarded — a missing preference is simply "system".
+ * access is guarded — an unreadable preference is simply the default.
  */
-export function readPref(): ThemePref {
+export function readTheme(): Theme {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored === "light" || stored === "dark") return stored;
   } catch {
     /* no storage available; fall through to the default */
   }
-  return "system";
-}
-
-export function resolvePref(pref: ThemePref): ResolvedTheme {
-  if (pref !== "system") return pref;
-  return lightQuery().matches ? "light" : "dark";
+  return DEFAULT_THEME;
 }
 
 /**
- * Stamp the resolved theme onto <html>. Every colour token keys off this one
+ * Stamp the theme onto <html>. Every colour token keys off this one
  * attribute, so this is the only place the DOM learns about the theme.
  */
-function apply(pref: ThemePref): ResolvedTheme {
-  const resolved = resolvePref(pref);
-  document.documentElement.setAttribute("data-theme", resolved);
+function apply(theme: Theme) {
+  document.documentElement.setAttribute("data-theme", theme);
 
   // Keep the browser UI (address bar, form controls) in step with the page.
   const meta = document.querySelector('meta[name="theme-color"]');
@@ -55,40 +51,34 @@ function apply(pref: ThemePref): ResolvedTheme {
       .trim();
     if (bg) meta.setAttribute("content", bg);
   }
-
-  return resolved;
 }
 
-function announce(pref: ThemePref, resolved: ResolvedTheme) {
-  window.dispatchEvent(
-    new CustomEvent<ThemeChangeDetail>(THEME_EVENT, {
-      detail: { pref, resolved },
-    }),
-  );
-}
-
-export function setPref(pref: ThemePref) {
+export function setTheme(theme: Theme) {
   try {
-    // "system" is the absence of a choice, so it clears the key rather than
-    // storing a third value — a later change to the OS setting then applies.
-    if (pref === "system") localStorage.removeItem(STORAGE_KEY);
-    else localStorage.setItem(STORAGE_KEY, pref);
+    localStorage.setItem(STORAGE_KEY, theme);
   } catch {
     /* preference simply will not persist */
   }
-  announce(pref, apply(pref));
+  apply(theme);
+  window.dispatchEvent(
+    new CustomEvent<ThemeChangeDetail>(THEME_EVENT, { detail: { theme } }),
+  );
+}
+
+/** Flip to the other mode and return it. */
+export function toggleTheme(): Theme {
+  const next: Theme = readTheme() === "dark" ? "light" : "dark";
+  setTheme(next);
+  return next;
 }
 
 /**
- * Re-apply on boot (the inline script already set the attribute; this keeps
- * the meta colour and listeners consistent) and follow the OS from then on.
+ * Re-apply on boot.
+ *
+ * The inline script in index.html has already set the attribute to avoid a
+ * flash of the wrong theme; this keeps the meta colour consistent once the
+ * tokens are actually loaded.
  */
 export function initTheme() {
-  const pref = readPref();
-  apply(pref);
-
-  lightQuery().addEventListener("change", () => {
-    // Only track the OS while the reader has not made an explicit choice.
-    if (readPref() === "system") announce("system", apply("system"));
-  });
+  apply(readTheme());
 }

@@ -1,31 +1,27 @@
 import { LitElement, css, html } from "lit";
 import { customElement, state } from "lit/decorators.js";
 import { reset } from "../styles/shared";
-import { readPref, setPref, THEME_EVENT } from "../lib/theme";
-import type { ThemePref } from "../lib/theme";
+import { readTheme, toggleTheme, THEME_EVENT } from "../lib/theme";
+import type { Theme } from "../lib/theme";
 
-/** The cycle order, so the button is predictable: system → light → dark. */
-const ORDER: ThemePref[] = ["system", "light", "dark"];
-
-const LABEL: Record<ThemePref, string> = {
-  system: "System theme",
+const LABEL: Record<Theme, string> = {
   light: "Light theme",
   dark: "Dark theme",
 };
 
 /**
- * One button that cycles the theme preference.
+ * One button that flips between dark and light.
  *
- * A cycling control needs the current state to be readable at a glance, so the
- * icon names the mode you are in — monitor, sun, moon — and the accessible
- * label spells out both that and what pressing it will do.
+ * Two states, so the icon can simply name the mode you are in — sun or moon —
+ * and the label says what pressing it will do. With only two modes the press
+ * is its own undo, which is why this needs no menu.
  */
 @customElement("cf-theme-toggle")
 export class CfThemeToggle extends LitElement {
-  @state() private pref: ThemePref = "system";
+  @state() private theme: Theme = "dark";
 
   private onExternalChange = () => {
-    this.pref = readPref();
+    this.theme = readTheme();
   };
 
   static styles = [
@@ -85,7 +81,7 @@ export class CfThemeToggle extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
-    this.pref = readPref();
+    this.theme = readTheme();
     window.addEventListener(THEME_EVENT, this.onExternalChange);
   }
 
@@ -94,40 +90,32 @@ export class CfThemeToggle extends LitElement {
     super.disconnectedCallback();
   }
 
-  private cycle() {
-    const next = ORDER[(ORDER.indexOf(this.pref) + 1) % ORDER.length];
-    this.pref = next;
-    setPref(next);
+  private flip() {
+    this.theme = toggleTheme();
   }
 
   private icon() {
-    switch (this.pref) {
-      case "light":
-        return html`<svg viewBox="0 0 20 20" aria-hidden="true">
-          <circle cx="10" cy="10" r="3.6" />
-          <path
-            d="M10 2v1.8M10 16.2V18M2 10h1.8M16.2 10H18M4.4 4.4l1.3 1.3M14.3 14.3l1.3 1.3M15.6 4.4l-1.3 1.3M5.7 14.3l-1.3 1.3"
-          />
-        </svg>`;
-      case "dark":
-        return html`<svg viewBox="0 0 20 20" aria-hidden="true">
-          <path d="M16.5 12.4A7 7 0 0 1 7.6 3.5a7 7 0 1 0 8.9 8.9Z" />
-        </svg>`;
-      default:
-        return html`<svg viewBox="0 0 20 20" aria-hidden="true">
-          <rect x="2.5" y="3.5" width="15" height="10" rx="2" />
-          <path d="M7 16.5h6M10 13.5v3" />
-        </svg>`;
+    if (this.theme === "light") {
+      return html`<svg viewBox="0 0 20 20" aria-hidden="true">
+        <circle cx="10" cy="10" r="3.6" />
+        <path
+          d="M10 2v1.8M10 16.2V18M2 10h1.8M16.2 10H18M4.4 4.4l1.3 1.3M14.3 14.3l1.3 1.3M15.6 4.4l-1.3 1.3M5.7 14.3l-1.3 1.3"
+        />
+      </svg>`;
     }
+    return html`<svg viewBox="0 0 20 20" aria-hidden="true">
+      <path d="M16.5 12.4A7 7 0 0 1 7.6 3.5a7 7 0 1 0 8.9 8.9Z" />
+    </svg>`;
   }
 
   render() {
-    const next = ORDER[(ORDER.indexOf(this.pref) + 1) % ORDER.length];
+    const next: Theme = this.theme === "dark" ? "light" : "dark";
     return html`
       <button
-        @click=${this.cycle}
-        title=${`${LABEL[this.pref]} — switch to ${LABEL[next].toLowerCase()}`}
-        aria-label=${`${LABEL[this.pref]}. Activate to switch to ${LABEL[
+        @click=${this.flip}
+        aria-pressed=${this.theme === "dark"}
+        title=${`${LABEL[this.theme]} — switch to ${LABEL[next].toLowerCase()}`}
+        aria-label=${`${LABEL[this.theme]}. Activate to switch to ${LABEL[
           next
         ].toLowerCase()}.`}
       >

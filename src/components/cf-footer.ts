@@ -18,7 +18,6 @@ const COLUMNS = [
     links: [
       { label: "Documentation", href: "/docs" },
       { label: "Language support", href: "#" },
-      { label: "GitHub", href: "https://github.com" },
       { label: "Status", href: "#" },
     ],
   },

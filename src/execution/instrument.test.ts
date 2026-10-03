@@ -168,3 +168,91 @@ console.log(summary);
     expect(trace("").frames).toEqual([]);
   });
 });
+
+describe("naming functions that have no identifier of their own", () => {
+  /** The program that exposed this: every method came out "(anonymous)". */
+  const BROWSER = `class BrowserHistory {
+  constructor() {
+    this.stack = [];
+  }
+
+  visit(page) {
+    this.stack.push(page);
+    console.log("Visited:", page);
+  }
+
+  back() {
+    if (this.stack.length <= 1) {
+      console.log("No previous page");
+      return;
+    }
+    this.stack.pop();
+    console.log("Back to:", this.stack[this.stack.length - 1]);
+  }
+}
+
+const browser = new BrowserHistory();
+browser.visit("google.com");
+browser.visit("github.com");
+browser.back();
+`;
+
+  const stackNames = (t: Trace) => {
+    const names = new Set<string>();
+    for (const frame of t.frames) for (const n of frame.stack) names.add(n);
+    return [...names];
+  };
+
+  it("names class methods after the class and the method", () => {
+    const names = stackNames(trace(BROWSER));
+    expect(names).toContain("BrowserHistory.visit");
+    expect(names).toContain("BrowserHistory.back");
+  });
+
+  it("names the constructor after the class it builds", () => {
+    expect(stackNames(trace(BROWSER))).toContain("new BrowserHistory");
+  });
+
+  it("leaves no (anonymous) frame behind", () => {
+    // The whole point: "(anonymous)" is a placeholder, not a name, and it
+    // leaked all the way out into the call stack and the summary.
+    expect(stackNames(trace(BROWSER))).not.toContain("(anonymous)");
+  });
+
+  it("still runs the program correctly", () => {
+    const t = trace(BROWSER);
+    expect(t.console.map((l) => l.text)).toEqual([
+      "Visited: google.com",
+      "Visited: github.com",
+      "Back to: google.com",
+    ]);
+    expect(t.error).toBeUndefined();
+  });
+
+  it("names a function assigned to a variable", () => {
+    const t = trace(`const double = function (n) { return n * 2; };
+console.log(double(4));`);
+    expect(stackNames(t)).toContain("double");
+  });
+
+  it("names an arrow assigned to a variable", () => {
+    const t = trace(`const triple = (n) => { return n * 3; };
+console.log(triple(3));`);
+    expect(stackNames(t)).toContain("triple");
+    expect(stackNames(t)).not.toContain("(arrow)");
+  });
+
+  it("names an object-literal method", () => {
+    const t = trace(`const calc = {
+  add(a, b) { return a + b; },
+};
+console.log(calc.add(1, 2));`);
+    expect(stackNames(t)).toContain("add");
+  });
+
+  it("still names a plain function declaration", () => {
+    const t = trace(`function plain(n) { return n; }
+console.log(plain(1));`);
+    expect(stackNames(t)).toContain("plain");
+  });
+});

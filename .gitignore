@@ -18,6 +18,9 @@ playwright-report
 blob-report
 /.cache
 
+# Local link to the Vercel project (machine-specific ids, not source).
+.vercel
+
 # Secrets. .env.example is committed; real values never are.
 .env
 .env.*
@@ -33,3 +36,6 @@ blob-report
 *.njsproj
 *.sln
 *.sw?
+
+.vercel
+.env*

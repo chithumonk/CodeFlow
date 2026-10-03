@@ -2,8 +2,9 @@ import { LitElement, css, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import { repeat } from "lit/directives/repeat.js";
 import { classMap } from "lit/directives/class-map.js";
+import { styleMap } from "lit/directives/style-map.js";
 import { reset } from "../styles/shared";
-import { ExecutionController } from "../execution/controller";
+import { ExecutionController, STEP_INTERVAL } from "../execution/controller";
 import type { ControllerState } from "../execution/controller";
 import type { ExecutionEngine } from "../execution/events";
 import { consoleUpTo } from "../execution/trace";
@@ -31,6 +32,8 @@ import "./cf-exec-controls";
 import "./cf-input";
 import "./cf-splash";
 import "./cf-trace-panels";
+import "./cf-summary";
+import "./cf-visualizer";
 import "./cf-transcript";
 
 type SaveState = "saved" | "dirty" | "saving" | "failed";
@@ -65,7 +68,29 @@ export class CfWorkspace extends LitElement {
   private warmedUp = new Set<string>();
 
   @state() private mobilePanel: "code" | "state" = "code";
-  @state() private bottomTab: "transcript" | "console" = "transcript";
+
+  @state() private bottomTab: "transcript" | "console" | "summary" =
+    "transcript";
+
+  // --- Full-screen playback ------------------------------------------------
+  /** True while the visualizer covers the workspace. */
+  @state() private theater = false;
+  /** Playback multiplier the visualizer is showing, 1 = STEP_INTERVAL. */
+  @state() private speed = 1;
+
+  // --- Bottom panel size ---------------------------------------------------
+  /**
+   * Height of the output panel in pixels, or null to use the stylesheet.
+   *
+   * Null until the reader drags: that way the CSS default still applies, and
+   * it can differ by breakpoint (13rem on a desktop, 10rem on a phone)
+   * without this having to know about either.
+   */
+  @state() private bottomHeight: number | null = null;
+  /** True while dragging, so the whole workspace stops selecting text. */
+  @state() private resizing = false;
+  /** Where the current drag started, in client pixels and panel pixels. */
+  private dragFrom = { y: 0, height: 0 };
 
   // --- File dialogs --------------------------------------------------------
   @state() private creating = false;
@@ -323,12 +348,50 @@ export class CfWorkspace extends LitElement {
         min-height: 0;
       }
 
-      .tabstrip {
+      .tabbar {
         display: flex;
-        overflow-x: auto;
+        align-items: stretch;
         border-bottom: 1px solid var(--cf-line);
         background: var(--cf-inset);
         flex: none;
+      }
+
+      .tabstrip {
+        display: flex;
+        overflow-x: auto;
+        flex: 1 1 auto;
+        min-width: 0;
+      }
+
+      /*
+       * Hidden while the explorer is visible -- it already has a New file
+       * button, and two would be noise. Below 900px the explorer is gone and
+       * this becomes the only way to add a file.
+       */
+      .tab-add {
+        display: none;
+        align-items: center;
+        justify-content: center;
+        flex: none;
+        width: 40px;
+        border: 0;
+        border-left: 1px solid var(--cf-line);
+        background: transparent;
+        color: var(--cf-text-dim);
+        cursor: pointer;
+      }
+
+      .tab-add:hover {
+        color: var(--cf-text);
+      }
+
+      .tab-add svg {
+        width: 15px;
+        height: 15px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1.8;
+        stroke-linecap: round;
       }
 
       .tabstrip button {
@@ -378,10 +441,87 @@ export class CfWorkspace extends LitElement {
       }
 
       /* --- Bottom pane --------------------------------------------------------- */
+      .theater-go {
+        flex: none;
+        margin-left: 0.375rem;
+        padding: 0.25rem 0.625rem;
+        border: 1px solid var(--cf-line);
+        border-radius: var(--cf-r-sm);
+        background: var(--cf-surface-2);
+        color: var(--cf-text-dim);
+        font-family: inherit;
+        font-size: 0.75rem;
+        cursor: pointer;
+      }
+
+      .theater-go:hover:not(:disabled) {
+        color: var(--cf-text);
+        border-color: var(--cf-accent);
+      }
+
+      .theater-go:disabled {
+        opacity: 0.45;
+        cursor: default;
+      }
+
+      /* --- Resize handle ---------------------------------------------------- */
+      /*
+       * Four pixels of visible track, but a taller hit area via padding and a
+       * negative margin, so the handle is grabbable without drawing a thick
+       * bar across the workspace.
+       */
+      .resizer {
+        flex: none;
+        height: 4px;
+        margin: -3px 0;
+        padding: 3px 0;
+        box-sizing: content-box;
+        cursor: row-resize;
+        background: transparent;
+        position: relative;
+        z-index: 1;
+        touch-action: none;
+      }
+
+      .resizer i {
+        display: block;
+        height: 100%;
+        background: transparent;
+        transition: background 0.12s ease;
+      }
+
+      .resizer:hover i,
+      .resizer:focus-visible i,
+      .resizer.active i {
+        background: var(--cf-accent);
+      }
+
+      .resizer:focus-visible {
+        outline: none;
+      }
+
+      /* While dragging, nothing in the workspace should select or hover. */
+      :host([data-resizing]) {
+        cursor: row-resize;
+        user-select: none;
+      }
+
+      :host([data-resizing]) .editor-col,
+      :host([data-resizing]) .rail,
+      :host([data-resizing]) .bottom {
+        pointer-events: none;
+      }
+
       .bottom {
         border-top: 1px solid var(--cf-line);
         background: var(--cf-inset-strong);
         height: 13rem;
+        /*
+         * flex: none, so the height set while dragging is the height that
+         * renders. Left shrinkable, the panel quietly rendered shorter than
+         * it was told to and the handle drifted away from the pointer.
+         */
+        flex: none;
         display: flex;
         flex-direction: column;
         min-height: 0;
@@ -562,6 +702,13 @@ export class CfWorkspace extends LitElement {
         .stage {
           grid-template-columns: minmax(0, 1fr) 230px;
         }
+        /* 44px is the smallest comfortable touch target; the bar's
+           align-items: stretch raises the tabs to match. */
+        .tab-add {
+          display: inline-flex;
+          min-width: 44px;
+          min-height: 44px;
+        }
       }
 
       @media (max-width: 680px) {
@@ -607,6 +754,10 @@ export class CfWorkspace extends LitElement {
   updated(changed: Map<string, unknown>) {
     if (changed.has("mobilePanel")) {
       this.setAttribute("data-panel", this.mobilePanel);
+    }
+    // An attribute rather than a class, so :host() styling can reach it.
+    if (changed.has("resizing")) {
+      this.toggleAttribute("data-resizing", this.resizing);
     }
   }
 
@@ -852,6 +1003,13 @@ export class CfWorkspace extends LitElement {
 
   /* --- Rendering ------------------------------------------------------------------ */
 
+  /** Open the new-file dialog. Shared by the explorer and the narrow tab bar. */
+  private startCreate() {
+    this.nameDraft = "";
+    this.nameError = "";
+    this.creating = true;
+  }
+
   private icon(path: string) {
     return html`<svg viewBox="0 0 20 20" aria-hidden="true">
       <path d=${path} />
@@ -868,11 +1026,7 @@ export class CfWorkspace extends LitElement {
             type="button"
             title="New file"
             aria-label="New file"
-            @click=${() => {
-              this.nameDraft = "";
-              this.nameError = "";
-              this.creating = true;
-            }}
+            @click=${() => this.startCreate()}
           >
             ${this.icon("M10 4v12M4 10h12")}
           </button>
@@ -936,6 +1090,166 @@ export class CfWorkspace extends LitElement {
     `;
   }
 
+  /* --- Full-screen playback ------------------------------------------------ */
+
+  /**
+   * Keep the visualizer wired to the one controller the workspace owns.
+   *
+   * The overlay holds no execution state of its own, so opening and closing
+   * it never interrupts a run: the same trace keeps playing underneath.
+   */
+  private onTheaterSpeed(speed: number) {
+    this.speed = speed;
+    this.controller.setStepInterval(STEP_INTERVAL / speed);
+  }
+
+  private renderTheater() {
+    const file = this.active;
+    return html`
+      <cf-visualizer
+        .trace=${this.exec.trace}
+        .exec=${this.exec}
+        .source=${this.files.find((f) => f.id === this.tracedFileId)?.content ??
+        file?.content ??
+        ""}
+        .fileName=${this.files.find((f) => f.id === this.tracedFileId)?.name ??
+        file?.name ??
+        ""}
+        .speed=${this.speed}
+        @cf-close=${() => (this.theater = false)}
+        @cf-play=${() => {
+          // Completed is a dead end for resume(), so the Play button has to
+          // mean "start again" once the trace has run out.
+          if (this.exec.status === "completed" || this.exec.status === "error") {
+            this.controller.restart();
+          } else {
+            this.controller.resume();
+          }
+        }}
+        @cf-pause=${() => this.controller.pause()}
+        @cf-step-forward=${() => this.controller.stepForward()}
+        @cf-step-back=${() => this.controller.stepBackward()}
+        @cf-seek=${(e: CustomEvent) => this.controller.seek(e.detail.step)}
+        @cf-speed=${(e: CustomEvent) => this.onTheaterSpeed(e.detail.speed)}
+      ></cf-visualizer>
+    `;
+  }
+
+  /* --- Resizing the output panel ------------------------------------------ */
+
+  /**
+   * How far the panel is allowed to be dragged.
+   *
+   * Measured against the workspace rather than the viewport so the app bar
+   * and the run controls are already accounted for. The editor keeps a floor
+   * of its own: a panel that can cover the code is a panel that can hide the
+   * thing it is explaining.
+   */
+  private bottomBounds() {
+    const min = 64;
+    const panel = this.renderRoot.querySelector(".bottom");
+    const stage = this.renderRoot.querySelector(".stage");
+    if (!panel || !stage) return { min, max: min };
+
+    // The panel and the stage share whatever the app bar and run controls
+    // leave behind, so their combined height *is* the budget -- no need to
+    // know what else is on screen. The stage keeps a floor: a panel that can
+    // cover the code can hide the thing it is explaining.
+    const available =
+      panel.getBoundingClientRect().height +
+      stage.getBoundingClientRect().height;
+    return { min, max: Math.max(min, available - 140) };
+  }
+
+  private clampBottom(height: number) {
+    const { min, max } = this.bottomBounds();
+    return Math.min(Math.max(Math.round(height), min), max);
+  }
+
+  /**
+   * Current height in pixels.
+   *
+   * Measured rather than read from state, so this is right before the first
+   * drag (when the stylesheet owns the height) and stays right if layout
+   * ever disagrees with what we asked for.
+   */
+  private currentBottomHeight() {
+    const panel = this.renderRoot.querySelector(".bottom");
+    if (panel) return panel.getBoundingClientRect().height;
+    return this.bottomHeight ?? 208;
+  }
+
+  private onResizeStart = (event: PointerEvent) => {
+    // Left button only; a right-click drag is not a resize.
+    if (event.button !== 0) return;
+    event.preventDefault();
+
+    this.dragFrom = { y: event.clientY, height: this.currentBottomHeight() };
+    this.resizing = true;
+
+    // Capture on the handle so the drag survives the pointer outleaving it --
+    // without this, moving faster than the re-render drops the drag.
+    (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+  };
+
+  private onResizeMove = (event: PointerEvent) => {
+    if (!this.resizing) return;
+    // Dragging up (smaller clientY) makes the panel taller, hence the flip.
+    this.bottomHeight = this.clampBottom(
+      this.dragFrom.height - (event.clientY - this.dragFrom.y),
+    );
+  };
+
+  private onResizeEnd = (event: PointerEvent) => {
+    if (!this.resizing) return;
+    this.resizing = false;
+    const handle = event.currentTarget as HTMLElement;
+    if (handle.hasPointerCapture(event.pointerId)) {
+      handle.releasePointerCapture(event.pointerId);
+    }
+  };
+
+  /** Arrow keys resize too, so this is not a mouse-only control. */
+  private onResizeKey = (event: KeyboardEvent) => {
+    const step = event.shiftKey ? 48 : 16;
+    const { min, max } = this.bottomBounds();
+
+    let next: number | null = null;
+    if (event.key === "ArrowUp") next = this.currentBottomHeight() + step;
+    else if (event.key === "ArrowDown") next = this.currentBottomHeight() - step;
+    else if (event.key === "Home") next = max;
+    else if (event.key === "End") next = min;
+    if (next === null) return;
+
+    event.preventDefault();
+    this.bottomHeight = this.clampBottom(next);
+  };
+
+  private renderResizer() {
+    const { min, max } = this.bottomBounds();
+    return html`
+      <div
+        class=${classMap({ resizer: true, active: this.resizing })}
+        role="separator"
+        aria-orientation="horizontal"
+        aria-label="Resize the output panel"
+        aria-valuenow=${Math.round(this.currentBottomHeight())}
+        aria-valuemin=${Math.round(min)}
+        aria-valuemax=${Math.round(max)}
+        tabindex="0"
+        @pointerdown=${this.onResizeStart}
+        @pointermove=${this.onResizeMove}
+        @pointerup=${this.onResizeEnd}
+        @pointercancel=${this.onResizeEnd}
+        @keydown=${this.onResizeKey}
+        @dblclick=${() => (this.bottomHeight = null)}
+        title="Drag to resize — double-click to reset"
+      >
+        <i></i>
+      </div>
+    `;
+  }
+
   private renderBottom(traceable: boolean) {
     const trace = this.exec.trace;
     const step = Math.max(this.exec.step, 0);
@@ -946,10 +1260,13 @@ export class CfWorkspace extends LitElement {
     // An output-only language has no transcript to show, ever. Forcing the
     // Console tab beats leaving the reader on an empty pane wondering where
     // their output went.
-    const tabId = traceable ? this.bottomTab : "console";
+    // Transcript is the only tab that needs a traceable language; Console and
+    // Summary say something useful either way.
+    const tabId =
+      this.bottomTab === "transcript" && !traceable ? "console" : this.bottomTab;
 
     const tab = (
-      id: "transcript" | "console",
+      id: "transcript" | "console" | "summary",
       label: string,
       count: number,
     ) => html`
@@ -965,10 +1282,19 @@ export class CfWorkspace extends LitElement {
     `;
 
     return html`
-      <div class="bottom">
+      ${this.renderResizer()}
+      <div
+        class="bottom"
+        style=${styleMap(
+          this.bottomHeight === null
+            ? {}
+            : { height: `${this.bottomHeight}px` },
+        )}
+      >
         <header role="tablist">
           ${traceable ? tab("transcript", "Transcript", steps) : nothing}
           ${tab("console", "Console", lines.length)}
+          ${tab("summary", "Summary", 0)}
           <span class="spacer"></span>
           ${
             tracedName
@@ -980,10 +1306,30 @@ export class CfWorkspace extends LitElement {
               ? html`<span class="notice" title=${this.exec.note}>notice</span>`
               : nothing
           }
+          <!--
+            Only offered once there is a trace: a full-screen player with
+            nothing to play is a dead end, and disabling it says why better
+            than an empty screen would.
+          -->
+          <button
+            class="theater-go"
+            type="button"
+            ?disabled=${steps === 0}
+            title=${
+              steps === 0
+                ? "Run a traceable file first"
+                : "Watch full screen"
+            }
+            @click=${() => (this.theater = true)}
+          >
+            Full view
+          </button>
         </header>
 
         ${
-          tabId === "transcript"
+          tabId === "summary"
+            ? html`<cf-summary .trace=${trace}></cf-summary>`
+            : tabId === "transcript"
             ? html`<cf-transcript
                 .trace=${trace}
                 .step=${this.exec.step}
@@ -1116,26 +1462,43 @@ export class CfWorkspace extends LitElement {
         ${this.renderExplorer()}
 
         <div class="editor-col">
-          <div class="tabstrip" role="tablist" aria-label="Open files">
-            ${repeat(
-              this.files,
-              (f) => f.id,
-              (f) => html`
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected=${f.id === this.activeId}
-                  @click=${() => (this.activeId = f.id)}
-                >
-                  ${f.name}
-                  ${
-                    this.isDirty(f)
-                      ? html`<i class="dot" title="Unsaved changes"></i>`
-                      : nothing
-                  }
-                </button>
-              `,
-            )}
+          <div class="tabbar">
+            <div class="tabstrip" role="tablist" aria-label="Open files">
+              ${repeat(
+                this.files,
+                (f) => f.id,
+                (f) => html`
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected=${f.id === this.activeId}
+                    @click=${() => (this.activeId = f.id)}
+                  >
+                    ${f.name}
+                    ${
+                      this.isDirty(f)
+                        ? html`<i class="dot" title="Unsaved changes"></i>`
+                        : nothing
+                    }
+                  </button>
+                `,
+              )}
+            </div>
+
+            <!--
+              The explorer is hidden below 900px, and it owns the only other
+              "New file" button. Without this one a phone can switch between
+              files but never add one.
+            -->
+            <button
+              class="tab-add"
+              type="button"
+              title="New file"
+              aria-label="New file"
+              @click=${() => this.startCreate()}
+            >
+              ${this.icon("M10 4v12M4 10h12")}
+            </button>
           </div>
 
           <cf-code-editor
@@ -1160,6 +1523,7 @@ export class CfWorkspace extends LitElement {
       </div>
 
       ${this.renderBottom(traceable)}
+      ${this.theater ? this.renderTheater() : nothing}
 
       <cf-exec-controls
         .traceable=${traceable}
