@@ -127,6 +127,25 @@ export function instrument(source: string): string {
     }
   }
 
+  /** Is this node something with a body we can enter? */
+  function isFunction(node: AnyNode | null | undefined): boolean {
+    return (
+      !!node &&
+      (node.type === "FunctionExpression" ||
+        node.type === "ArrowFunctionExpression" ||
+        node.type === "FunctionDeclaration")
+    );
+  }
+
+  /** The readable name of a member key, or null when it is computed. */
+  function keyName(key: AnyNode | null | undefined): string | null {
+    if (!key) return null;
+    if (key.type === "Identifier") return key.name as string;
+    if (key.type === "PrivateIdentifier") return `#${key.name as string}`;
+    if (key.type === "Literal") return String(key.value);
+    return null;
+  }
+
   function instrumentFunction(node: AnyNode, name: string) {
     const body = node.body as AnyNode;
 
@@ -162,6 +181,61 @@ export function instrument(source: string): string {
       case "ArrowFunctionExpression":
         instrumentFunction(node, "(arrow)");
         return;
+
+      /*
+       * A class method is a FunctionExpression with no `id`, so left to the
+       * case above every method of every class entered the trace as
+       * "(anonymous)" — including the constructor. The name lives on the
+       * MethodDefinition that owns it, which is only reachable from here.
+       */
+      case "ClassDeclaration":
+      case "ClassExpression": {
+        const className =
+          ((node.id as AnyNode | null)?.name as string) ?? "class";
+        const classBody = node.body as AnyNode | undefined;
+
+        for (const member of (classBody?.body as AnyNode[]) ?? []) {
+          const value = member.value as AnyNode | null;
+          const key = keyName(member.key as AnyNode);
+
+          if (isFunction(value)) {
+            const label =
+              member.kind === "constructor"
+                ? `new ${className}`
+                : `${className}.${key ?? "(computed)"}`;
+            instrumentFunction(value as AnyNode, label);
+          } else {
+            walkNode(value, fnName);
+          }
+          // A computed key is an expression in its own right.
+          walkNode(member.key as AnyNode, fnName);
+        }
+
+        walkNode(node.superClass as AnyNode, fnName);
+        return;
+      }
+
+      /* `const f = function () {}` and `const f = () => {}` are named f. */
+      case "VariableDeclarator": {
+        const init = node.init as AnyNode | null;
+        const name = (node.id as AnyNode | null)?.name as string | undefined;
+        if (name !== undefined && isFunction(init)) {
+          instrumentFunction(init as AnyNode, name);
+          return;
+        }
+        break;
+      }
+
+      /* An object-literal method takes the property name. */
+      case "Property": {
+        const value = node.value as AnyNode | null;
+        const key = keyName(node.key as AnyNode);
+        if (key !== null && isFunction(value)) {
+          instrumentFunction(value as AnyNode, key);
+          return;
+        }
+        break;
+      }
 
       case "ReturnStatement": {
         const owner = fnName ?? "(anonymous)";

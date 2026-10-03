@@ -143,13 +143,7 @@ export class CfCta extends LitElement {
                   yet, and press run. It takes about ten seconds.
                 </p>
                 <div class="actions">
-                  <cf-button href="#product" size="lg">Start Coding</cf-button>
-                  <cf-button
-                    href="https://github.com"
-                    variant="secondary"
-                    size="lg"
-                    >View on GitHub</cf-button
-                  >
+                  <cf-button href="/signup" size="lg">Start Coding</cf-button>
                 </div>
                 <p class="fine">Free while in beta · No account required</p>
               </div>

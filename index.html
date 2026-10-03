@@ -17,13 +17,13 @@
          wrong palette. Mirrors src/lib/theme.ts; keep the storage key in sync. -->
     <script>
       (function () {
+        // Two modes only, and no OS fallback: whatever the reader last chose,
+        // else dark. Must match DEFAULT_THEME and STORAGE_KEY in lib/theme.ts.
         var theme = "dark";
         try {
           var stored = localStorage.getItem("codeflow-theme");
           if (stored === "light" || stored === "dark") {
             theme = stored;
-          } else if (matchMedia("(prefers-color-scheme: light)").matches) {
-            theme = "light";
           }
         } catch (e) {
           /* storage blocked — dark is the fallback */

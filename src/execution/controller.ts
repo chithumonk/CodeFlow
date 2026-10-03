@@ -153,6 +153,18 @@ export class ExecutionController {
     }, this.interval);
   }
 
+  /**
+   * Change how long each step is held on screen.
+   *
+   * Rescheduling matters: without it a speed change made mid-playback would
+   * not be felt until the pending timer fired, which at half speed is over a
+   * second of the old pace after the reader asked for a new one.
+   */
+  setStepInterval(ms: number) {
+    this.interval = Math.max(50, ms);
+    if (this.state.status === "running") this.schedule();
+  }
+
   pause() {
     if (this.state.status !== "running") return;
     this.clearTimer();

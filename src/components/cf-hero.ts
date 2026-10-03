@@ -218,7 +218,7 @@ export class CfHero extends LitElement {
         <div class="container">
           <cf-reveal>
             <span class="badge"
-              ><em>v0.1</em> Now tracing JavaScript in the browser</span
+              ><em>v0.2</em> Now playing back a whole run, full screen</span
             >
           </cf-reveal>
 
@@ -239,7 +239,7 @@ export class CfHero extends LitElement {
 
           <cf-reveal .delay=${3}>
             <div class="cta">
-              <cf-button href="#product" size="lg">
+              <cf-button href="/signup" size="lg">
                 Start Coding
                 <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
                   <path
